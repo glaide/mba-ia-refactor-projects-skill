@@ -1,4 +1,4 @@
-# Criação de Skills — Refatoração Arquitetural Automatizada
+# Criação de Skills da glaide — Refatoração Arquitetural Automatizada
 
 Ao longo do curso você aprendeu o que são Skills e como elas permitem que um agente de IA atue como um especialista em tarefas específicas. Agora imagine o seguinte cenário: você herdou 3 projetos legados com problemas de arquitetura, segurança e qualidade de código. Revisar e corrigir tudo manualmente levaria dias.
 
