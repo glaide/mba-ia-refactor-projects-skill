@@ -1,17 +1,39 @@
 import sqlite3
+
+from flask import g
 from werkzeug.security import generate_password_hash
+
 from src.config.settings import DB_PATH
 
-db_connection = None
+_schema_initialized = False
 
 
 def get_db():
-    global db_connection
-    if db_connection is None:
-        db_connection = sqlite3.connect(DB_PATH)
-        db_connection.row_factory = sqlite3.Row
-        _init_schema(db_connection)
-    return db_connection
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+def close_db(_error=None):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def init_db(app):
+    global _schema_initialized
+
+    @app.teardown_appcontext
+    def teardown(_exception):
+        close_db()
+
+    with app.app_context():
+        db = get_db()
+        if not _schema_initialized:
+            _init_schema(db)
+            _schema_initialized = True
+        close_db()
 
 
 def _init_schema(db):

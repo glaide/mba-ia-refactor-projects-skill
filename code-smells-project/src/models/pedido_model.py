@@ -1,36 +1,51 @@
 from src.database import get_db
+from src.services.report_service import build_sales_report
 
 
-def _load_pedido_items(cursor, pedido_id):
+def _item_from_row(row):
+    return {
+        "produto_id": row["produto_id"],
+        "produto_nome": row["produto_nome"] or "Desconhecido",
+        "quantidade": row["quantidade"],
+        "preco_unitario": row["preco_unitario"],
+    }
+
+
+def _load_items_by_pedido_ids(cursor, pedido_ids):
+    if not pedido_ids:
+        return {}
+
+    placeholders = ",".join("?" * len(pedido_ids))
     cursor.execute(
-        """
-        SELECT ip.produto_id, ip.quantidade, ip.preco_unitario, p.nome AS produto_nome
+        f"""
+        SELECT ip.pedido_id, ip.produto_id, ip.quantidade, ip.preco_unitario, p.nome AS produto_nome
         FROM itens_pedido ip
         LEFT JOIN produtos p ON p.id = ip.produto_id
-        WHERE ip.pedido_id = ?
+        WHERE ip.pedido_id IN ({placeholders})
         """,
-        (pedido_id,),
+        pedido_ids,
     )
+
+    items_by_pedido = {pid: [] for pid in pedido_ids}
+    for row in cursor.fetchall():
+        items_by_pedido[row["pedido_id"]].append(_item_from_row(row))
+    return items_by_pedido
+
+
+def _rows_to_pedidos(rows, cursor):
+    pedido_ids = [row["id"] for row in rows]
+    items_by_pedido = _load_items_by_pedido_ids(cursor, pedido_ids)
     return [
         {
-            "produto_id": row["produto_id"],
-            "produto_nome": row["produto_nome"] or "Desconhecido",
-            "quantidade": row["quantidade"],
-            "preco_unitario": row["preco_unitario"],
+            "id": row["id"],
+            "usuario_id": row["usuario_id"],
+            "status": row["status"],
+            "total": row["total"],
+            "criado_em": row["criado_em"],
+            "itens": items_by_pedido.get(row["id"], []),
         }
-        for row in cursor.fetchall()
+        for row in rows
     ]
-
-
-def _row_to_pedido(row, cursor):
-    return {
-        "id": row["id"],
-        "usuario_id": row["usuario_id"],
-        "status": row["status"],
-        "total": row["total"],
-        "criado_em": row["criado_em"],
-        "itens": _load_pedido_items(cursor, row["id"]),
-    }
 
 
 def create(usuario_id, itens):
@@ -76,13 +91,13 @@ def create(usuario_id, itens):
 def get_by_usuario(usuario_id):
     cursor = get_db().cursor()
     cursor.execute("SELECT * FROM pedidos WHERE usuario_id = ?", (usuario_id,))
-    return [_row_to_pedido(row, cursor) for row in cursor.fetchall()]
+    return _rows_to_pedidos(cursor.fetchall(), cursor)
 
 
 def get_all():
     cursor = get_db().cursor()
     cursor.execute("SELECT * FROM pedidos")
-    return [_row_to_pedido(row, cursor) for row in cursor.fetchall()]
+    return _rows_to_pedidos(cursor.fetchall(), cursor)
 
 
 def update_status(pedido_id, novo_status):
@@ -93,7 +108,7 @@ def update_status(pedido_id, novo_status):
     return True
 
 
-def sales_report():
+def get_sales_stats():
     cursor = get_db().cursor()
     cursor.execute("SELECT COUNT(*) FROM pedidos")
     total_pedidos = cursor.fetchone()[0]
@@ -110,21 +125,14 @@ def sales_report():
     cursor.execute("SELECT COUNT(*) FROM pedidos WHERE status = 'cancelado'")
     cancelados = cursor.fetchone()[0]
 
-    desconto = 0
-    if faturamento > 10000:
-        desconto = faturamento * 0.1
-    elif faturamento > 5000:
-        desconto = faturamento * 0.05
-    elif faturamento > 1000:
-        desconto = faturamento * 0.02
-
     return {
         "total_pedidos": total_pedidos,
-        "faturamento_bruto": round(faturamento, 2),
-        "desconto_aplicavel": round(desconto, 2),
-        "faturamento_liquido": round(faturamento - desconto, 2),
+        "faturamento_bruto": faturamento,
         "pedidos_pendentes": pendentes,
         "pedidos_aprovados": aprovados,
         "pedidos_cancelados": cancelados,
-        "ticket_medio": round(faturamento / total_pedidos, 2) if total_pedidos > 0 else 0,
     }
+
+
+def sales_report():
+    return build_sales_report(get_sales_stats())

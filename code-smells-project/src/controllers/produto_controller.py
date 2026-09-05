@@ -1,5 +1,7 @@
-from flask import request, jsonify
+from flask import jsonify, request
+
 from src.models import produto_model
+from src.services.auth_service import require_admin
 
 CATEGORIAS_VALIDAS = ["informatica", "moveis", "vestuario", "geral", "eletronicos", "livros"]
 
@@ -16,6 +18,7 @@ def buscar(produto_id):
     return jsonify({"erro": "Produto não encontrado", "sucesso": False}), 404
 
 
+@require_admin
 def criar():
     dados = request.get_json()
     if not dados:
@@ -42,6 +45,7 @@ def criar():
     return jsonify({"dados": {"id": produto_id}, "sucesso": True, "mensagem": "Produto criado"}), 201
 
 
+@require_admin
 def atualizar(produto_id):
     if not produto_model.get_by_id(produto_id):
         return jsonify({"erro": "Produto não encontrado"}), 404
@@ -61,6 +65,7 @@ def atualizar(produto_id):
     return jsonify({"sucesso": True, "mensagem": "Produto atualizado"}), 200
 
 
+@require_admin
 def deletar(produto_id):
     if not produto_model.get_by_id(produto_id):
         return jsonify({"erro": "Produto não encontrado"}), 404

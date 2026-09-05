@@ -1,25 +1,15 @@
 from flask import jsonify
-from src.database import get_db
+from werkzeug.exceptions import HTTPException
+
+from src.models import health_model
 
 
 def health_check():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT 1")
-    cursor.execute("SELECT COUNT(*) FROM produtos")
-    produtos = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    usuarios = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM pedidos")
-    pedidos = cursor.fetchone()[0]
-
+    health_model.ping()
+    counts = health_model.get_counts()
     return jsonify({
         "status": "ok",
         "database": "connected",
-        "counts": {
-            "produtos": produtos,
-            "usuarios": usuarios,
-            "pedidos": pedidos,
-        },
+        "counts": counts,
         "versao": "1.0.0",
     }), 200
