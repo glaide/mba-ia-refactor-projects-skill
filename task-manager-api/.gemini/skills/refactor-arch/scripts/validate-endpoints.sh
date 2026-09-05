@@ -12,20 +12,26 @@ if curl -sf "${BASE}/" > /dev/null 2>&1; then
   echo "✓ /"
 fi
 
-if curl -sf "${BASE}/produtos" > /dev/null 2>&1; then
-  echo "✓ /produtos"
-fi
+TOKEN=$(curl -sf -X POST "${BASE}/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"joao@email.com","password":"admin1234"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
-if curl -sf "${BASE}/tasks" > /dev/null 2>&1; then
+AUTH_HEADER="Authorization: Bearer ${TOKEN}"
+
+if curl -sf -H "${AUTH_HEADER}" "${BASE}/tasks" > /dev/null 2>&1; then
   echo "✓ /tasks"
 fi
 
-if curl -sf "${BASE}/users" > /dev/null 2>&1; then
+if curl -sf -H "${AUTH_HEADER}" "${BASE}/users" > /dev/null 2>&1; then
   echo "✓ /users"
 fi
 
-if curl -sf "http://localhost:3000/api/admin/financial-report" > /dev/null 2>&1; then
-  echo "✓ /api/admin/financial-report"
+if curl -sf -H "${AUTH_HEADER}" "${BASE}/categories" > /dev/null 2>&1; then
+  echo "✓ /categories"
+fi
+
+if curl -sf -H "${AUTH_HEADER}" "${BASE}/reports/summary" > /dev/null 2>&1; then
+  echo "✓ /reports/summary"
 fi
 
 echo "Validation complete."

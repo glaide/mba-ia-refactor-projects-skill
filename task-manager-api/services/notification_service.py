@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+
+from utils.datetime_utils import utc_now
 
 
 class NotificationService:
@@ -23,7 +24,7 @@ class NotificationService:
             server.sendmail(self.email_user, to, message)
             server.quit()
             return True
-        except Exception as e:
+        except smtplib.SMTPException as e:
             print(f"Erro ao enviar email: {str(e)}")
             return False
 
@@ -35,7 +36,7 @@ class NotificationService:
             'type': 'task_assigned',
             'user_id': user.id,
             'task_id': task.id,
-            'timestamp': datetime.utcnow(),
+            'timestamp': utc_now(),
         })
 
     def notify_task_overdue(self, user, task):

@@ -5,8 +5,9 @@ from config.settings import SECRET_KEY, DEBUG, SQLALCHEMY_DATABASE_URI, HOST, PO
 from routes.task_routes import task_bp
 from routes.user_routes import user_bp
 from routes.report_routes import report_bp
+from routes.category_routes import category_bp
 from middlewares.error_handler import register_error_handlers
-import datetime
+from utils.datetime_utils import utc_now
 
 
 def create_app():
@@ -22,11 +23,12 @@ def create_app():
     app.register_blueprint(task_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(report_bp)
+    app.register_blueprint(category_bp)
     register_error_handlers(app)
 
     @app.route('/health')
     def health():
-        return {'status': 'ok', 'timestamp': str(datetime.datetime.now())}
+        return {'status': 'ok', 'timestamp': str(utc_now())}
 
     @app.route('/')
     def index():

@@ -1,11 +1,16 @@
-from datetime import datetime, timedelta
-from flask import request, jsonify
+from datetime import timedelta
+
+from flask import jsonify
+from sqlalchemy import case, func
 from database import db
 from models.task import Task
 from models.user import User
 from models.category import Category
+from services.auth_service import require_manager_or_admin
+from utils.datetime_utils import utc_now
 
 
+@require_manager_or_admin
 def summary_report():
     total_tasks = Task.query.count()
     total_users = User.query.count()
@@ -16,8 +21,9 @@ def summary_report():
     done = Task.query.filter_by(status='done').count()
     cancelled = Task.query.filter_by(status='cancelled').count()
 
+    now = utc_now()
     overdue_tasks = Task.query.filter(
-        Task.due_date < datetime.utcnow(),
+        Task.due_date < now,
         Task.status.notin_(['done', 'cancelled']),
     ).all()
 
@@ -26,33 +32,45 @@ def summary_report():
             'id': t.id,
             'title': t.title,
             'due_date': str(t.due_date),
-            'days_overdue': (datetime.utcnow() - t.due_date).days,
+            'days_overdue': (now - t.due_date).days,
         }
         for t in overdue_tasks
     ]
 
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    seven_days_ago = now - timedelta(days=7)
     recent_tasks = Task.query.filter(Task.created_at >= seven_days_ago).count()
     recent_done = Task.query.filter(
         Task.status == 'done',
         Task.updated_at >= seven_days_ago,
     ).count()
 
-    user_stats = []
-    for u in User.query.all():
-        user_tasks = Task.query.filter_by(user_id=u.id).all()
-        total = len(user_tasks)
-        completed = sum(1 for t in user_tasks if t.status == 'done')
-        user_stats.append({
-            'user_id': u.id,
-            'user_name': u.name,
-            'total_tasks': total,
-            'completed_tasks': completed,
-            'completion_rate': round((completed / total) * 100, 2) if total > 0 else 0,
-        })
+    user_stats_rows = (
+        db.session.query(
+            User.id,
+            User.name,
+            func.count(Task.id).label('total_tasks'),
+            func.sum(case((Task.status == 'done', 1), else_=0)).label('completed_tasks'),
+        )
+        .outerjoin(Task, Task.user_id == User.id)
+        .group_by(User.id, User.name)
+        .all()
+    )
+
+    user_stats = [
+        {
+            'user_id': row.id,
+            'user_name': row.name,
+            'total_tasks': row.total_tasks,
+            'completed_tasks': int(row.completed_tasks or 0),
+            'completion_rate': round(
+                (int(row.completed_tasks or 0) / row.total_tasks) * 100, 2
+            ) if row.total_tasks > 0 else 0,
+        }
+        for row in user_stats_rows
+    ]
 
     report = {
-        'generated_at': str(datetime.utcnow()),
+        'generated_at': str(now),
         'overview': {
             'total_tasks': total_tasks,
             'total_users': total_users,
@@ -84,6 +102,7 @@ def summary_report():
     return jsonify(report), 200
 
 
+@require_manager_or_admin
 def user_report(user_id):
     user = User.query.get(user_id)
     if not user:
@@ -111,55 +130,3 @@ def user_report(user_id):
             'completion_rate': round((done / total) * 100, 2) if total > 0 else 0,
         },
     }), 200
-
-
-def get_categories():
-    categories = Category.query.all()
-    result = []
-    for c in categories:
-        cat_data = c.to_dict()
-        cat_data['task_count'] = Task.query.filter_by(category_id=c.id).count()
-        result.append(cat_data)
-    return jsonify(result), 200
-
-
-def create_category():
-    data = request.get_json()
-    if not data or not data.get('name'):
-        return jsonify({'error': 'Nome é obrigatório'}), 400
-
-    category = Category(
-        name=data['name'],
-        description=data.get('description', ''),
-        color=data.get('color', '#000000'),
-    )
-    db.session.add(category)
-    db.session.commit()
-    return jsonify(category.to_dict()), 201
-
-
-def update_category(cat_id):
-    cat = Category.query.get(cat_id)
-    if not cat:
-        return jsonify({'error': 'Categoria não encontrada'}), 404
-
-    data = request.get_json()
-    if 'name' in data:
-        cat.name = data['name']
-    if 'description' in data:
-        cat.description = data['description']
-    if 'color' in data:
-        cat.color = data['color']
-
-    db.session.commit()
-    return jsonify(cat.to_dict()), 200
-
-
-def delete_category(cat_id):
-    cat = Category.query.get(cat_id)
-    if not cat:
-        return jsonify({'error': 'Categoria não encontrada'}), 404
-
-    db.session.delete(cat)
-    db.session.commit()
-    return jsonify({'message': 'Categoria deletada'}), 200
