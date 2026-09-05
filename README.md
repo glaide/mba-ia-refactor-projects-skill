@@ -220,6 +220,20 @@ POST /api/checkout → {"msg":"Sucesso","enrollment_id":2} HTTP:200
 health 200 | tasks 200 | users 200 | login 200
 ```
 
+### Screenshots de validação
+
+**Projeto 1 — code-smells-project**
+
+![Validação code-smells-project](code-smells-screenshot.png)
+
+**Projeto 2 — ecommerce-api-legacy**
+
+![Validação ecommerce-api-legacy](ecommerce-api-legacy-screenshot.png)
+
+**Projeto 3 — task-manager-api**
+
+![Validação task-manager-api](task-manager-screenshot.png)
+
 ---
 
 ## D) Como Executar
