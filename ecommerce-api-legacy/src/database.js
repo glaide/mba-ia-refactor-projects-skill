@@ -25,6 +25,19 @@ function promisifyDb(database) {
     database.allAsync = promisify(database.all.bind(database));
 }
 
+async function runInTransaction(callback) {
+    const database = getDb();
+    await database.runAsync("BEGIN");
+    try {
+        const result = await callback(database);
+        await database.runAsync("COMMIT");
+        return result;
+    } catch (error) {
+        await database.runAsync("ROLLBACK");
+        throw error;
+    }
+}
+
 async function initDb() {
     const database = getDb();
     await database.runAsync(
@@ -65,4 +78,4 @@ async function initDb() {
     }
 }
 
-module.exports = { getDb, initDb };
+module.exports = { getDb, initDb, runInTransaction };

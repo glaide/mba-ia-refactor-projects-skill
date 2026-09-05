@@ -1,7 +1,7 @@
 const courseModel = require("../models/courseModel");
 const userModel = require("../models/userModel");
 const enrollmentModel = require("../models/enrollmentModel");
-const bcrypt = require("bcryptjs");
+const { processPayment } = require("../services/paymentService");
 
 async function checkout(req, res, next) {
     try {
@@ -19,21 +19,24 @@ async function checkout(req, res, next) {
         let user = await userModel.findByEmail(eml);
 
         if (!user) {
+            if (!pwd) {
+                return res.status(400).send("Bad Request");
+            }
             const userId = await userModel.create(usr, eml, pwd);
             user = { id: userId };
         } else if (pwd) {
-            const valid = await bcrypt.compare(pwd, user.pass);
-            if (!valid) {
+            const authResult = await userModel.authenticate(eml, pwd);
+            if (authResult === false) {
                 return res.status(401).send("Senha inválida");
             }
         }
 
-        const status = card.startsWith("4") ? "PAID" : "DENIED";
-        if (status === "DENIED") {
+        const payment = processPayment(card);
+        if (payment.status === "DENIED") {
             return res.status(400).send("Pagamento recusado");
         }
 
-        const enrollmentId = await enrollmentModel.enroll(user.id, c_id, course.price);
+        const enrollmentId = await enrollmentModel.enroll(user.id, c_id, course.price, payment.status);
         res.status(200).json({ msg: "Sucesso", enrollment_id: enrollmentId });
     } catch (error) {
         next(error);
@@ -51,8 +54,11 @@ async function financialReport(_req, res, next) {
 
 async function deleteUser(req, res, next) {
     try {
-        await userModel.remove(req.params.id);
-        res.send("Usuário deletado, mas as matrículas e pagamentos ficaram sujos no banco.");
+        const changes = await userModel.remove(req.params.id);
+        if (changes === 0) {
+            return res.status(404).send("Usuário não encontrado");
+        }
+        res.send("Usuário deletado com sucesso.");
     } catch (error) {
         next(error);
     }

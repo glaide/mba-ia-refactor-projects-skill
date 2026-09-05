@@ -1,8 +1,11 @@
+require("dotenv").config();
 const express = require("express");
-const { config } = require("./config");
+const { config, validateConfig } = require("./config");
 const { initDb } = require("./database");
 const apiRoutes = require("./routes/apiRoutes");
 const { errorHandler } = require("./middlewares/errorHandler");
+
+validateConfig();
 
 const app = express();
 app.use(express.json());
