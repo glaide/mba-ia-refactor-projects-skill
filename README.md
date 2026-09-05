@@ -6,6 +6,8 @@ Skill `refactor-arch` implementada com **Gemini CLI** (`.gemini/skills/refactor-
 
 ## A) Análise Manual
 
+A tabela abaixo documenta os problemas de maior impacto identificados manualmente antes de criar a skill (amostra representativa, 8 por projeto). A auditoria automatizada da Fase 2 cobre o código completo e gera relatórios mais abrangentes em [`reports/`](reports/) — ver seção C para os totais consolidados.
+
 ### Projeto 1 — code-smells-project (Python/Flask, E-commerce)
 
 | Severidade | Arquivo | Problema | Justificativa |
@@ -17,6 +19,7 @@ Skill `refactor-arch` implementada com **Gemini CLI** (`.gemini/skills/refactor-
 | MEDIUM | `models.py:171-233` | N+1 queries em listagem de pedidos | Degradação de performance com volume |
 | MEDIUM | `database.py:4-10` | Conexão SQLite singleton global | Race conditions em concorrência |
 | LOW | `controllers.py` | `except Exception` genérico vaza detalhes | Information disclosure em respostas 500 |
+| LOW | `app.py:47-78` | Rotas admin inline fora do padrão de controllers | Manutenção fragmentada; lógica admin bypassa camada de controllers |
 
 ### Projeto 2 — ecommerce-api-legacy (Node/Express, LMS)
 
@@ -29,6 +32,7 @@ Skill `refactor-arch` implementada com **Gemini CLI** (`.gemini/skills/refactor-
 | MEDIUM | `src/AppManager.js:4-141` | God class (DB + rotas + negócio) | Impossível testar/isolar camadas |
 | MEDIUM | `src/AppManager.js:89-127` | Race conditions em callbacks aninhados | Relatórios incompletos/incorretos |
 | LOW | `src/AppManager.js:28-33` | Campos crípticos (`usr`, `eml`, `pwd`) | API difícil de integrar |
+| LOW | `src/app.js:1-14` | Sem error handler global nem security headers | Erros não tratados; baseline de segurança ausente |
 
 ### Projeto 3 — task-manager-api (Python/Flask, Task Manager)
 
@@ -41,6 +45,7 @@ Skill `refactor-arch` implementada com **Gemini CLI** (`.gemini/skills/refactor-
 | MEDIUM | `routes/task_routes.py:14-58` | N+1 queries em listagem | Performance degrada com dados |
 | MEDIUM | `services/`, `utils/` | Camadas existem mas não são usadas | Falsa separação arquitetural |
 | LOW | `routes/report_routes.py:157-223` | CRUD categorias em report routes | Mistura de responsabilidades |
+| LOW | `app.py:30-31` | `db.create_all()` no import do app | Dificulta testes isolados e migrações explícitas |
 
 ---
 
@@ -84,6 +89,18 @@ Incluídos com base nos smells reais encontrados nos 3 projetos legados.
 | task-manager-api | 4 | 3 | 4 | 2 | 13 |
 
 Relatórios completos em [`reports/`](reports/).
+
+> **Nota A ↔ C:** a seção A lista 8 findings por projeto (amostra manual focada nos smells mais impactantes). A Fase 2 da skill varre todos os arquivos fonte e encontra findings adicionais — por exemplo, endpoints admin não listados na análise inicial (`/admin/reset-db`, plaintext passwords) ou violações transversais (God Class, APIs deprecated). Os totais abaixo refletem a auditoria completa, não apenas a amostra manual.
+
+### Observações cross-stack
+
+**Projeto 1 — monolito flat (Python/Flask):** exigiu reestruturação total. A Fase 3 criou `src/` do zero, extraiu models/controllers por domínio e centralizou rotas em `views/routes.py`. Foi o caso com maior volume de transformação estrutural.
+
+**Projeto 2 — Node/Express com God Class:** a skill dividiu `AppManager.js` em models, controllers, routes e services. O desafio principal foi o padrão callback do `sqlite3` — o playbook inclui wrapper promisified para capturar `lastID`. Auth administrativa via API key substituiu endpoints abertos.
+
+**Projeto 3 — Flask parcialmente organizado:** a Fase 3 preservou blueprints e pastas existentes, extraindo controllers e tornando routes finas. A skill reconheceu camadas já presentes (`models/`, `services/`) e focou em wiring (NotificationService), auth com Bearer token e RBAC, em vez de recriar a estrutura.
+
+**Padrão comum nos 3:** Fase 1 detectou stack corretamente em todos; Fase 2 pausou para confirmação; Fase 3 validou boot + endpoints. Projetos Python compartilharam padrões (`werkzeug` hashing, error handler Flask); Node exigiu adaptação para middleware Express e variáveis de ambiente.
 
 ### Estrutura antes/depois
 
@@ -231,29 +248,61 @@ gemini "Execute a skill refactor-arch neste projeto"
 
 Verificar descoberta da skill: `gemini skills list`
 
-### Validar refatoração manualmente
+### Validar refatoração
+
+Com o servidor rodando em outro terminal, use o script de validação incluído na skill:
 
 ```bash
-# Projeto 1
+# Projeto 1 (porta 5000)
+cd code-smells-project
+bash .gemini/skills/refactor-arch/scripts/validate-endpoints.sh
+
+# Projeto 2 (porta 3000)
+cd ecommerce-api-legacy
+bash .gemini/skills/refactor-arch/scripts/validate-endpoints.sh
+
+# Projeto 3 (porta 5000)
+cd task-manager-api
+bash .gemini/skills/refactor-arch/scripts/validate-endpoints.sh
+```
+
+#### Validar manualmente (com autenticação)
+
+```bash
+# Projeto 1 — endpoints públicos + login
 cd code-smells-project
 uv venv .venv && uv pip install -r requirements.txt
 .venv/bin/python app.py
+
 curl http://localhost:5000/health
 curl http://localhost:5000/produtos
+TOKEN=$(curl -s -X POST http://localhost:5000/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@loja.com","senha":"admin123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/pedidos/usuario/2
 
-# Projeto 2
+# Projeto 2 — checkout público; admin exige API key
 cd ecommerce-api-legacy
+cp .env.example .env
 npm install && npm start
+
 curl -X POST http://localhost:3000/api/checkout \
   -H "Content-Type: application/json" \
   -d '{"usr":"Test","eml":"test@test.com","pwd":"1234","c_id":2,"card":"4111222233334444"}'
+curl http://localhost:3000/api/admin/financial-report \
+  -H "x-api-key: dev-admin-key"
 
-# Projeto 3
+# Projeto 3 — seed obrigatório no primeiro boot; demais rotas exigem token
 cd task-manager-api
-uv venv .venv && uv pip install -r requirements.txt werkzeug
+uv venv .venv && uv pip install -r requirements.txt
+.venv/bin/python seed.py
 .venv/bin/python app.py
+
 curl http://localhost:5000/health
-curl http://localhost:5000/tasks
+TOKEN=$(curl -s -X POST http://localhost:5000/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"joao@email.com","password":"admin1234"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/tasks
 ```
 
 ---
