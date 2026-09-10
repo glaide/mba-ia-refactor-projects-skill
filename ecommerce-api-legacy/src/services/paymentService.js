@@ -1,13 +1,13 @@
-const APPROVED_CARD_PREFIX = "4";
-
-function processPayment(cardNumber) {
-    if (!cardNumber || typeof cardNumber !== "string") {
+async function processPaymentToken(token) {
+    if (!token || typeof token !== "string" || !token.startsWith("tok_")) {
         return { status: "DENIED" };
     }
 
-    return {
-        status: cardNumber.startsWith(APPROVED_CARD_PREFIX) ? "PAID" : "DENIED",
-    };
+    if (token === "tok_declined") {
+        return { status: "DENIED" };
+    }
+
+    return { status: "PAID" };
 }
 
-module.exports = { processPayment };
+module.exports = { processPaymentToken };

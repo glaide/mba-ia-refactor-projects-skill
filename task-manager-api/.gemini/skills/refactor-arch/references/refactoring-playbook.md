@@ -222,3 +222,75 @@ notifier.notify_task_assigned(user, task)
 ```
 
 Move SMTP credentials to environment variables when wiring.
+
+---
+
+## 13. Optional Checkout Auth → Mandatory Auth for Existing Users
+
+**Before (Node):**
+```javascript
+let user = await userModel.findByEmail(eml);
+
+if (!user) {
+    if (!pwd) return res.status(400).send("Bad Request");
+    const userId = await userModel.create(usr, eml, pwd);
+    user = { id: userId };
+} else if (pwd) {
+    const authResult = await userModel.authenticate(eml, pwd);
+    if (authResult === false) {
+        return res.status(401).send("Senha inválida");
+    }
+}
+```
+
+**After:**
+```javascript
+let user = await userModel.findByEmail(eml);
+
+if (!user) {
+    if (!pwd) return res.status(400).send("Bad Request");
+    const userId = await userModel.create(usr, eml, pwd);
+    user = { id: userId };
+} else {
+    if (!pwd) return res.status(401).send("Senha obrigatória");
+    const authResult = await userModel.authenticate(eml, pwd);
+    if (!authResult) return res.status(401).send("Senha inválida");
+}
+```
+
+Never allow checkout for an existing email without verifying identity first.
+
+---
+
+## 14. Raw Card Numbers → Payment Tokenization
+
+**Before (Node):**
+```javascript
+const { card } = req.body;
+const payment = processPayment(card);
+
+function processPayment(cardNumber) {
+    return {
+        status: cardNumber.startsWith("4") ? "PAID" : "DENIED",
+    };
+}
+```
+
+**After:**
+```javascript
+const { payment_token } = req.body;
+if (!payment_token) return res.status(400).send("Bad Request");
+const payment = await processPaymentToken(payment_token);
+
+async function processPaymentToken(token) {
+    if (!token || !token.startsWith("tok_")) {
+        return { status: "DENIED" };
+    }
+    if (token === "tok_declined") {
+        return { status: "DENIED" };
+    }
+    return { status: "PAID" };
+}
+```
+
+Accept only gateway tokens (`tok_*`); never accept, log, or persist raw PAN. Test tokens: `tok_visa_ok` → PAID, `tok_declined` → DENIED.

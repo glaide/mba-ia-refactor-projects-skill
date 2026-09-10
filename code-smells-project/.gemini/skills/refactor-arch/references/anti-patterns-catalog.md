@@ -42,8 +42,10 @@
 - All CRUD endpoints publicly accessible
 - Login exists but token never validated on subsequent requests
 - Role assignment (`admin`) accepted from anonymous POST body
+- Checkout with `else if (pwd)` — password optional for existing users
+- Checkout proceeds for known email without identity verification before charge
 
-**Recommendation:** Add auth middleware; protect sensitive routes; validate tokens
+**Recommendation:** Add auth middleware; protect sensitive routes; validate tokens; require password or session for existing-user checkout
 
 ---
 
@@ -65,8 +67,10 @@
 - `to_dict()` or API responses include `password`, `senha`, `secret_key`
 - Health endpoint returns internal config (debug flag, secret key, db path)
 - Credit card numbers logged to console
+- Request body accepts `card`, `cardNumber`, or raw PAN fields
+- Payment approval via `startsWith` on card prefix (e.g. Visa = `"4"`)
 
-**Recommendation:** Strip sensitive fields from serializers; sanitize health responses
+**Recommendation:** Strip sensitive fields from serializers; sanitize health responses; use payment gateway tokens only
 
 ---
 

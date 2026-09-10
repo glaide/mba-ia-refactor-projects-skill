@@ -10,7 +10,7 @@ Content-Type: application/json
   "eml": "gui@fullcycle.com.br",
   "pwd": "senhaforte",
   "c_id": 2,
-  "card": "4111222233334444"
+  "payment_token": "tok_visa_ok"
 }
 
 ### Checkout - pagamento recusado
@@ -22,7 +22,7 @@ Content-Type: application/json
   "eml": "joao@teste.com",
   "pwd": "123",
   "c_id": 1,
-  "card": "5111222233334444"
+  "payment_token": "tok_declined"
 }
 
 ### Relatório financeiro administrativo

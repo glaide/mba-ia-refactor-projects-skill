@@ -1,13 +1,13 @@
 const courseModel = require("../models/courseModel");
 const userModel = require("../models/userModel");
 const enrollmentModel = require("../models/enrollmentModel");
-const { processPayment } = require("../services/paymentService");
+const { processPaymentToken } = require("../services/paymentService");
 
 async function checkout(req, res, next) {
     try {
-        const { usr, eml, pwd, c_id, card } = req.body;
+        const { usr, eml, pwd, c_id, payment_token } = req.body;
 
-        if (!usr || !eml || !c_id || !card) {
+        if (!usr || !eml || !c_id || !payment_token) {
             return res.status(400).send("Bad Request");
         }
 
@@ -24,14 +24,17 @@ async function checkout(req, res, next) {
             }
             const userId = await userModel.create(usr, eml, pwd);
             user = { id: userId };
-        } else if (pwd) {
+        } else {
+            if (!pwd) {
+                return res.status(401).send("Senha obrigatória");
+            }
             const authResult = await userModel.authenticate(eml, pwd);
-            if (authResult === false) {
+            if (!authResult) {
                 return res.status(401).send("Senha inválida");
             }
         }
 
-        const payment = processPayment(card);
+        const payment = await processPaymentToken(payment_token);
         if (payment.status === "DENIED") {
             return res.status(400).send("Pagamento recusado");
         }

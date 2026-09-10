@@ -39,9 +39,9 @@ O checkout (`POST /api/checkout`) é público e não exige autenticação prévi
 |-------|-----------|
 | `usr` | Nome do usuário |
 | `eml` | E-mail |
-| `pwd` | Senha (obrigatória para novo usuário) |
+| `pwd` | Senha (obrigatória para novo usuário e para usuário existente) |
 | `c_id` | ID do curso |
-| `card` | Número do cartão (prefixo `4` = aprovado) |
+| `payment_token` | Token do gateway de pagamento (`tok_visa_ok` = aprovado, `tok_declined` = recusado) |
 
 ## Dados de seed
 

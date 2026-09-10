@@ -9,7 +9,7 @@ echo "Validating endpoints at ${BASE}..."
 
 curl -sf -X POST "${BASE}/api/checkout" \
   -H "Content-Type: application/json" \
-  -d '{"usr":"Test","eml":"validate@test.com","pwd":"1234","c_id":2,"card":"4111222233334444"}' \
+  -d '{"usr":"Test","eml":"validate@test.com","pwd":"1234","c_id":2,"payment_token":"tok_visa_ok"}' \
   > /dev/null && echo "✓ POST /api/checkout"
 
 curl -sf "${BASE}/api/admin/financial-report" \

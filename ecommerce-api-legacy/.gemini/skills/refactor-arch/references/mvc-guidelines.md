@@ -58,6 +58,8 @@ src/
 - Passwords hashed with industry-standard algorithm
 - Sensitive fields excluded from API responses
 - Admin endpoints protected or removed
+- Existing-user checkout requires password or valid session token
+- Payments via gateway tokens only; never accept or process raw PAN
 - Debug mode off by default; controlled via env
 
 ## Error Handling
